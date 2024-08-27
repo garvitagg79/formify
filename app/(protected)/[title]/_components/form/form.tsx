@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DndProvider, useDrag, useDrop } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import TextArea from "./_components/TextArea";
 import NumericRating from "./_components/NumericRating";
 import StarRating from "./_components/StarRating";
@@ -20,6 +22,47 @@ import {
   Smile,
   Star,
 } from "lucide-react";
+
+const ITEM_TYPE = "FORM_COMPONENT";
+
+interface ComponentProps {
+  component: any;
+  index: number;
+  moveComponent: (fromIndex: number, toIndex: number) => void;
+  children: React.ReactNode;
+}
+
+interface DragItem {
+  index: number;
+}
+
+const DraggableComponent: React.FC<ComponentProps> = ({
+  component,
+  index,
+  moveComponent,
+  children,
+}) => {
+  const [, ref] = useDrag<DragItem>({
+    type: ITEM_TYPE,
+    item: { index },
+  });
+
+  const [, drop] = useDrop<DragItem>({
+    accept: ITEM_TYPE,
+    hover: (draggedItem) => {
+      if (draggedItem.index !== index) {
+        moveComponent(draggedItem.index, index);
+        draggedItem.index = index;
+      }
+    },
+  });
+
+  return (
+    <div ref={(node) => ref(drop(node))} className="p-4 border rounded">
+      {children}
+    </div>
+  );
+};
 
 export default function MainForm() {
   const { title } = useParams();
@@ -53,7 +96,7 @@ export default function MainForm() {
   const handleAddComponent = (type: string) => {
     const newComponent = {
       type: type,
-      value: "", // Initialize value if needed
+      value: "",
     };
     setComponents((prev) => [...prev, newComponent]);
   };
@@ -69,78 +112,39 @@ export default function MainForm() {
     });
   };
 
+  const moveComponent = (fromIndex: number, toIndex: number) => {
+    setComponents((prev) => {
+      const updatedComponents = [...prev];
+      const [movedComponent] = updatedComponents.splice(fromIndex, 1);
+      updatedComponents.splice(toIndex, 0, movedComponent);
+      return updatedComponents;
+    });
+  };
+
   const renderComponent = (component: any, index: number) => {
+    const commonProps = {
+      key: index,
+      value: component.value,
+      onSave: (newValue: string) => handleEditComponent(index, newValue),
+      onEdit: () => handleEditComponent(index, component.value),
+      onDelete: () => handleDeleteComponent(index),
+    };
+
     switch (component.type) {
       case "textArea":
-        return (
-          <TextArea
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onDelete={() => handleDeleteComponent(index)}
-            onEdit={() => handleEditComponent(index, component.value)}
-          />
-        );
+        return <TextArea {...commonProps} />;
       case "numericRating":
-        return (
-          <NumericRating
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onEdit={() => handleEditComponent(index, component.value)}
-            onDelete={() => handleDeleteComponent(index)}
-          />
-        );
+        return <NumericRating {...commonProps} />;
       case "starRating":
-        return (
-          <StarRating
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onEdit={() => handleEditComponent(index, component.value)}
-            onDelete={() => handleDeleteComponent(index)}
-          />
-        );
+        return <StarRating {...commonProps} />;
       case "smileRating":
-        return (
-          <SmileRating
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onEdit={() => handleEditComponent(index, component.value)}
-            onDelete={() => handleDeleteComponent(index)}
-          />
-        );
+        return <SmileRating {...commonProps} />;
       case "singleLineInput":
-        return (
-          <SingleLineInput
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onDelete={() => handleDeleteComponent(index)}
-            onEdit={() => handleEditComponent(index, component.value)}
-          />
-        );
+        return <SingleLineInput {...commonProps} />;
       case "radioButton":
-        return (
-          <RadioButton
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onEdit={() => handleEditComponent(index, component.value)}
-            onDelete={() => handleDeleteComponent(index)}
-          />
-        );
+        return <RadioButton {...commonProps} />;
       case "categories":
-        return (
-          <Categories
-            key={index}
-            value={component.value}
-            onSave={(newValue) => handleEditComponent(index, newValue)}
-            onEdit={() => handleEditComponent(index, component.value)}
-            onDelete={() => handleDeleteComponent(index)}
-          />
-        );
+        return <Categories {...commonProps} />;
       default:
         return null;
     }
@@ -170,138 +174,155 @@ export default function MainForm() {
   };
 
   return (
-    <div className="flex justify-between items-start min-h-screen">
-      <div className="w-[40%] ml-60 border mt-6 mb-6 border-gray-400 rounded">
-        <div className="space-y-4">
-          <div className="flex flex-row font-bold text-lg bg-blue-500 items-center text-white p-3 justify-between">
-            <div className="flex flex-row items-center">
-              <ChevronLeft className="w-6 h-6 mr-2" />
-              {formattedTitle}
+    <DndProvider backend={HTML5Backend}>
+      <div className="flex justify-between items-start min-h-screen">
+        <div className="w-[40%] ml-60 border mt-6 mb-6 border-gray-400 rounded">
+          <div className="space-y-4">
+            <div className="flex flex-row font-bold text-lg bg-blue-500 items-center text-white p-3 justify-between">
+              <div className="flex flex-row items-center">
+                <ChevronLeft className="w-6 h-6 mr-2" />
+                {formattedTitle}
+              </div>
+              <Pencil
+                className="w-5 h-5 mr-4 cursor-pointer"
+                onClick={handleTitleEdit}
+              />
             </div>
-            <Pencil
-              className="w-5 h-5 mr-4 cursor-pointer"
-              onClick={handleTitleEdit}
-            />
+            {components.map((component, index) => (
+              <DraggableComponent
+                key={index}
+                component={component}
+                index={index}
+                moveComponent={moveComponent}
+              >
+                {renderComponent(component, index)}
+              </DraggableComponent>
+            ))}
           </div>
-          {components.map((component, index) => (
-            <div className="p-4 border rounded" key={index}>
-              {renderComponent(component, index)}
+        </div>
+
+        {/* Right side: Options menu */}
+        <div className="w-1/4 p-4 bg-white border-l flex flex-col justify-between min-h-screen">
+          {isEditing ? (
+            <div className="">
+              <div className="flex justify-between items-center mb-4">
+                <Button
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  className="flex items-center"
+                >
+                  <ChevronLeft className="w-5 h-5 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={handleTitleSave}
+                >
+                  Save
+                </Button>
+              </div>
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="Enter new form name"
+              />
             </div>
-          ))}
+          ) : (
+            <>
+              {/* Component Add Buttons */}
+              <div>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("textArea")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <ClipboardType className="w-5 h-5 mr-4" />
+                    Add TextArea
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("numericRating")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <ArrowUp01 className="w-5 h-5 mr-4" />
+                    Add Numeric Rating
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("starRating")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <Star className="w-5 h-5 mr-4" />
+                    Add Star Rating
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("smileRating")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <Smile className="w-5 h-5 mr-4" />
+                    Add Smile Rating
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("singleLineInput")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <FileType2 className="w-5 h-5 mr-4" />
+                    Add Single Line Input
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("radioButton")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <List className="w-5 h-5 mr-4" />
+                    Add Radio Button
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddComponent("categories")}
+                  className="w-full mb-4 justify-between items-center"
+                >
+                  <div className="flex flex-row items-center justify-center">
+                    <Logs className="w-5 h-5 mr-4" />
+                    Add Categories
+                  </div>
+                  <PlusIcon className="w-6 h-6 text-blue-600" />
+                </Button>
+              </div>
+
+              {/* Place "Drag and drop components onto the form" at the bottom */}
+              <div className="flex flex-col items-center justify-end h-full">
+                <div className="text-gray-600 text-sm mt-auto">
+                  Drag and drop components onto the form
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Right side: Options menu */}
-      <div className="w-1/4 p-4 bg-white border-l">
-        {isEditing ? (
-          <div className="">
-            <div className="flex justify-between items-center mb-4">
-              <Button
-                variant="ghost"
-                onClick={handleCancelEdit}
-                className="flex items-center"
-              >
-                <ChevronLeft className="w-5 h-5 mr-2" />
-                Back
-              </Button>
-
-              <Button
-                className="bg-blue-500 hover:bg-blue-600 text-white"
-                onClick={handleTitleSave}
-              >
-                Save
-              </Button>
-            </div>
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded"
-              placeholder="Enter new form name"
-            />
-          </div>
-        ) : (
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("textArea")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <ClipboardType className="w-5 h-5 mr-4" />
-                Add TextArea
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("numericRating")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <ArrowUp01 className="w-5 h-5 mr-4" />
-                Add Numeric Rating
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("starRating")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <Star className="w-5 h-5 mr-4" />
-                Add Star Rating
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("smileRating")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <Smile className="w-5 h-5 mr-4" />
-                Add Smile Rating
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("singleLineInput")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <FileType2 className="w-5 h-5 mr-4" />
-                Add Single Line Input
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("radioButton")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <List className="w-5 h-5 mr-4" />
-                Add Radio Button
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => handleAddComponent("categories")}
-              className="w-full mb-4 justify-between items-center"
-            >
-              <div className="flex flex-row items-center justify-center">
-                <Logs className="w-5 h-5 mr-4" />
-                Add Categories
-              </div>
-              <PlusIcon className="w-6 h-6 text-blue-600" />
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
+    </DndProvider>
   );
 }
